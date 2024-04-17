@@ -48,7 +48,7 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
     # Launch VPN instances
     if vpn_count > 0:
         try:
-            exp_time = datetime.now().strftime("%b%d-%H%M-%S")
+            exp_time = datetime.now().strftime("%H%M-%S-%b%d")
             vpn_response = ec2.run_instances(
                 ImageId=image_id,
                 InstanceType=instance_type,
@@ -63,7 +63,7 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
                         'Tags': [
                             {
                                 'Key': 'Name',
-                                'Value': f'goose-{exp_time}'
+                                'Value': f'{exp_time}'
                             }
                         ]
                     }
@@ -76,6 +76,7 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
     # Launch non-VPN instances
     if non_vpn_count > 0:
         try:
+            exp_time = datetime.now().strftime("%H%M-%S-%b%d")
             non_vpn_response = ec2.run_instances(
                 ImageId=image_id,
                 InstanceType=instance_type,
@@ -90,7 +91,7 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
                         'Tags': [
                             {
                                 'Key': 'Name',
-                                'Value': f'goose-{exp_time}'
+                                'Value': f'{exp_time}'
                             }
                         ]
                     }
@@ -186,16 +187,26 @@ if __name__ == "__main__":
     # Set the Administrator password
     net user Administrator "{ADMIN_PASSWORD}"
 
+    # Create a DEBUG file on the Desktop
+    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'Installing chrome' -ItemType 'file' -Force
+
+
     # Install Google Chrome
     $Path = 'C:\Users\Administrator\Desktop\chrome_installer.exe'
     Invoke-WebRequest 'https://dl.google.com/chrome/install/standalone/ChromeStandaloneSetup64.exe' -OutFile $Path
     Start-Process -FilePath $Path -Args '/silent /install' -Wait
     Remove-Item $Path
 
+    # Open Google Chrome
+    Start-Process -FilePath 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
+
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
     Start-Process -FilePath "C:\Users\Administrator\Desktop\python-installer.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1" -Wait
     Remove-Item "C:\Users\Administrator\Desktop\python-installer.exe"
+
+    # Create a DEBUG file on the Desktop
+    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'creating venv' -ItemType 'file' -Force
 
     # Create a Python virtual environment and install dependencies
     python -m venv C:\Users\Administrator\Desktop\venv
@@ -208,6 +219,11 @@ if __name__ == "__main__":
     Invoke-WebRequest -Uri "https://github.com/yumyum333/dumdum/blob/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://github.com/yumyum333/dumdum/blob/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
     pip install -r C:\Users\Administrator\Desktop\requirements.txt
+
+    
+    # Create a DEBUG file on the Desktop
+    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
+
 
     # Run the Python script with arguments 
     python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD}
