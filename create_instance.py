@@ -140,57 +140,7 @@ if __name__ == "__main__":
     NON_VPN_COUNT = int(os.getenv('NON_VPN_COUNT'))
     GROUP_NAME = os.getenv('GROUP_NAME')
     INTERVAL = int(os.getenv('INTERVAL'))
-
-    # DESCRIPTION = "Security group for instance access on all ports from any IP"
-    # ec2 = boto3.client('ec2', region_name=REGION_NAME)
-    # security_group_id = create_security_group(
-    #     ec2=ec2, 
-    #     group_name=GROUP_NAME, 
-    #     description=DESCRIPTION, 
-    #     # vpc_id=VPC_ID,
-    #     )
-    
-    # # Common Operations for All Instances (Non-VPN and VPN)
-    # COMMON_USER_DATA_1 = f"""#!/bin/bash
-    # # Install desktop environment and XRDP
-    # apt-get update
-    # apt-get install -y xfce4 xfce4-session xrdp
-    # systemctl enable xrdp
-    # systemctl start xrdp
-
-    # # Install Python and virtual environment tools
-    # apt-get install -y python3-pip python3-venv
-
-    # # Create a Python virtual environment and install dependencies
-    # python3 -m venv /home/ubuntu/venv
-    # source /home/ubuntu/venv/bin/activate
-    # pip install --upgrade pip
-    # """
-
-    # COMMON_USER_DATA_2 = f"""
-    # # Download the Python script and requirements.txt (Assuming they are available via a public URL)
-    # wget https://github.com/yumyum333/dumdum/blob/main/monitor_website.py -P /home/ubuntu/
-    # wget https://github.com/yumyum333/dumdum/blob/main/requirements.txt -P /home/ubuntu/
-    # pip install -r /home/ubuntu/requirements.txt
-
-    # # Run the Python script with arguments 
-    # python /home/ubuntu/monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD}
-    # """
-
-    # NON_VPN_USER_DATA = COMMON_USER_DATA_1 + """
-    # echo 'No VPN configured on this instance.'
-    # """ + COMMON_USER_DATA_2
-
-    # VPN_USER_DATA = COMMON_USER_DATA_1 + f"""
-    # # Additional commands to set up and connect to NordVPN
-    # echo "Setting up and connecting to NordVPN..."
-    # wget https://nordvpn.com/download/linux/
-    # sh nordvpn-release_1.0.0_all.deb
-    # apt-get update
-    # apt-get install nordvpn
-    # nordvpn login --username {NORDVPN_USERNAME} --password {NORDVPN_PASSWORD}
-    # nordvpn connect
-    # """ + COMMON_USER_DATA_2
+    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 
     DESCRIPTION = "Security group for instance access on all ports from any IP"
     ec2 = boto3.client('ec2', region_name=REGION_NAME)
@@ -202,14 +152,17 @@ if __name__ == "__main__":
         )
     
     COMMON_USER_DATA_1 = rf"""<powershell>
+    # Set the Administrator password
+    net user Administrator "{ADMIN_PASSWORD}"
+
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "python-installer.exe"
     Start-Process -FilePath "python-installer.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1" -Wait
     Remove-Item "python-installer.exe"
 
     # Create a Python virtual environment and install dependencies
-    python -m venv C:\\venv
-    C:\\venv\\Scripts\\activate.ps1
+    python -m venv C:\venv
+    C:\venv\Scripts\activate.ps1
     python -m pip install --upgrade pip
     """
 
