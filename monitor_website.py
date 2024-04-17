@@ -23,20 +23,6 @@ def get_ip_and_hostname():
         public_ip_address = "Unavailable"
     return hostname, private_ip_address, public_ip_address
 
-def send_email(source_email, destination_email, email_password, message):
-    msg = MIMEMultipart()
-    msg['From'] = source_email
-    msg['To'] = destination_email
-    msg['Subject'] = 'instance notification'
-    msg.attach(MIMEText(message, 'plain'))
-    
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(source_email, email_password)
-    text = msg.as_string()
-    server.sendmail(source_email, destination_email, text)
-    server.quit()
-
 def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_key_id, aws_secret_access_key):
     client = boto3.client('logs', region_name=region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
     try:
