@@ -84,7 +84,7 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
         driver.get(url)
 
         initial_content = driver.page_source
-        send_email(source_email, destination_email, email_password, debug_message)
+        # send_email(source_email, destination_email, email_password, debug_message)
         send_cloudwatch_log(log_group, log_stream, debug_message)
         count = 0
         try:
@@ -93,7 +93,7 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
                 driver.refresh()
                 new_content = driver.page_source
                 if new_content != initial_content or count >= 10:
-                    send_email(source_email, destination_email, email_password, email_message)
+                    # send_email(source_email, destination_email, email_password, email_message)
                     send_cloudwatch_log(log_group, log_stream, email_message)
                     break
                 else:
@@ -104,7 +104,7 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
     except Exception as e:
         error_message = f"error: {e}"
         print(error_message)
-        send_email(source_email, destination_email, email_password, error_message)
+        # send_email(source_email, destination_email, email_password, error_message)
         send_cloudwatch_log(log_group, log_stream, error_message)
 
 if __name__ == "__main__":

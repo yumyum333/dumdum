@@ -170,6 +170,8 @@ if __name__ == "__main__":
     GROUP_NAME = os.getenv('GROUP_NAME')
     INTERVAL = int(os.getenv('INTERVAL'))
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+    LOG_GROUP = os.getenv('LOG_GROUP')
+    LOG_STREAM = os.getenv('LOG_STREAM')
 
     DESCRIPTION = "Security group for instance access on all ports from any IP"
     ec2 = boto3.client('ec2', region_name=REGION_NAME)
@@ -207,9 +209,6 @@ if __name__ == "__main__":
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'Installing chrome' -ItemType 'file' -Force
 
 
-    start msedge --guest "https://en.wikipedia.org/wiki/Glastonbury_Festival"
-
-
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
     Start-Process -FilePath "C:\Users\Administrator\Desktop\python-installer.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1" -Wait
@@ -217,11 +216,6 @@ if __name__ == "__main__":
 
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'creating venv' -ItemType 'file' -Force
-
-    # Create a Python virtual environment and install dependencies
-    python -m venv C:\Users\Administrator\Desktop\venv
-    C:\Users\Administrator\Desktop\venv\Scripts\activate.ps1
-    python -m pip install --upgrade pip
     """
 
     COMMON_USER_DATA_2 = rf"""
@@ -234,7 +228,7 @@ if __name__ == "__main__":
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
 
     # Run the Python script with arguments 
-    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD}
+    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}
     </powershell>
     """
 
