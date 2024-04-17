@@ -152,6 +152,12 @@ if __name__ == "__main__":
         )
     
     COMMON_USER_DATA_1 = rf"""<powershell>
+    # Create a DEBUG file on the Desktop
+    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'DEBUG_HERE' -ItemType 'file' -Force
+    
+    # Open Microsoft Edge
+    Start-Process "msedge"
+    
     # Set the Administrator password
     net user Administrator "{ADMIN_PASSWORD}"
 

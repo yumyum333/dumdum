@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
 import boto3
+import os
 
 def get_ip_and_hostname():
     hostname = socket.gethostname()
@@ -73,9 +74,14 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
     email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
     
     try:
-        service = EdgeService(EdgeChromiumDriverManager().install())
-        driver = webdriver.Edge(service=service)
-        driver.get(url)
+        # Check if Edge is running and open a new tab if it is
+        edge_check = os.system('powershell "Get-Process msedge -ErrorAction SilentlyContinue"')
+        if edge_check == 0:
+            os.system('powershell "Start-Process msedge -ArgumentList \'about:newtab\'"')
+        else:
+            service = EdgeService(EdgeChromiumDriverManager().install())
+            driver = webdriver.Edge(service=service)
+            driver.get(url)
 
         initial_content = driver.page_source
         send_email(source_email, destination_email, email_password, debug_message)
