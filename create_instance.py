@@ -224,21 +224,12 @@ if __name__ == "__main__":
 
     start msedge --guest --remote-debugging-port=9222 "about:blank"
 
-    # Create a virtual environment
-    python -m venv C:\Users\Administrator\Desktop\venv
+    cd C:\Users\Administrator\Desktop
+    pip install -r requirements.txt
+    Start-Sleep -Seconds 5
+    python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}
+    echo "python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}" >> command.txt
 
-    # Activate the virtual environment
-    C:\Users\Administrator\Desktop\venv\Scripts\Activate.ps1
-
-    # Install requirements in the virtual environment
-    python -m pip install -r C:\Users\Administrator\Desktop\requirements.txt
-
-    # Create a log file on the Desktop
-    $logFile = "C:\Users\Administrator\Desktop\script_log.txt"
-    New-Item -Path $logFile -ItemType File -Force
-
-    # Run the script in the virtual environment and redirect output to the log file
-    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY} *>> $logFile
     </powershell>
     """
 
