@@ -5,18 +5,15 @@ import time
 import botocore
 import random
 from datetime import datetime
+import paramiko
+import asyncio
 
 
 # Load environment variables from .env file
 load_dotenv()
 
-def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name, security_group_id, vpn_user_data, non_vpn_user_data, region_name):
-    # Assuming SECURITY_GROUP_IDS contains the ID of the security group you want to modify
-    # security_group_id = SECURITY_GROUP_IDS[0]
-
+def launch_instances(image_id, instance_type, count, key_name, security_group_id, user_data, region_name):
     ec2 = boto3.client('ec2', region_name=region_name)
-
-    
 
     # Check if the rule already exists
     try:
@@ -45,61 +42,34 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
         print(f"An error occurred: {e}")
         raise
 
-    # Launch VPN instances
-    if vpn_count > 0:
-        try:
-            exp_time = datetime.now().strftime("%H%M-%S-%b%d")
-            vpn_response = ec2.run_instances(
-                ImageId=image_id,
-                InstanceType=instance_type,
-                MinCount=1,
-                MaxCount=vpn_count,
-                KeyName=key_name,
-                SecurityGroupIds=[security_group_id],
-                UserData=vpn_user_data,
-                TagSpecifications=[
-                    {
-                        'ResourceType': 'instance',
-                        'Tags': [
-                            {
-                                'Key': 'Name',
-                                'Value': f'{exp_time}'
-                            }
-                        ]
-                    }
-                ]
-            )
-            print(f"Successfully launched {vpn_count} VPN instances.")
-        except Exception as e:
-            print(f"An error occurred while launching VPN instances: {str(e)}")
-
-    # Launch non-VPN instances
-    if non_vpn_count > 0:
-        try:
-            exp_time = datetime.now().strftime("%H%M-%S-%b%d")
-            non_vpn_response = ec2.run_instances(
-                ImageId=image_id,
-                InstanceType=instance_type,
-                MinCount=1,
-                MaxCount=non_vpn_count,
-                KeyName=key_name,
-                SecurityGroupIds=[security_group_id],
-                UserData=non_vpn_user_data,
-                TagSpecifications=[
-                    {
-                        'ResourceType': 'instance',
-                        'Tags': [
-                            {
-                                'Key': 'Name',
-                                'Value': f'{exp_time}'
-                            }
-                        ]
-                    }
-                ]
-            )
-            print(f"Successfully launched {non_vpn_count} non-VPN instances.")
-        except Exception as e:
-            print(f"An error occurred while launching non-VPN instances: {str(e)}")
+    # Launch instances
+    try:
+        exp_time = datetime.now().strftime("%H%M-%S-%b%d")
+        response = ec2.run_instances(
+            ImageId=image_id,
+            InstanceType=instance_type,
+            MinCount=1,
+            MaxCount=count,
+            KeyName=key_name,
+            SecurityGroupIds=[security_group_id],
+            UserData=user_data,
+            TagSpecifications=[
+                {
+                    'ResourceType': 'instance',
+                    'Tags': [
+                        {
+                            'Key': 'Name',
+                            'Value': f'{exp_time}'
+                        }
+                    ]
+                }
+            ]
+        )
+        print(f"Successfully launched {count} instances.")
+        return [instance['InstanceId'] for instance in response['Instances']]
+    except Exception as e:
+        print(f"An error occurred while launching instances: {str(e)}")
+        return []
 
 
 def get_default_vpc_id(ec2):
@@ -152,21 +122,55 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
     return security_group_id
 
 
-if __name__ == "__main__":
+def connect_to_instance(instance_id, key_name, region_name):
+    ec2_resource = boto3.resource('ec2', region_name=region_name)
+    instance = ec2_resource.Instance(instance_id)
+    instance.wait_until_running()
+
+    # Get the public IP address of the instance
+    public_ip = instance.public_ip_address
+
+    # Create an SSH client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    # Load the private key
+    key_path = f"{key_name}.pem"
+    private_key = paramiko.RSAKey.from_private_key_file(key_path)
+
+    # Connect to the instance
+    ssh.connect(hostname=public_ip, username="Administrator", pkey=private_key)
+
+    return ssh
+
+
+def run_commands_on_instance(ssh, commands):
+    for command in commands:
+        stdin, stdout, stderr = ssh.exec_command(command)
+        print(f"Command: {command}")
+        print(f"Output: {stdout.read().decode('utf-8')}")
+        print(f"Error: {stderr.read().decode('utf-8')}")
+
+
+async def connect_and_run_commands(instance_id, key_name, region_name, commands):
+    print(f"Connecting to instance: {instance_id}")
+    ssh = connect_to_instance(instance_id, key_name, region_name)
+
+    await asyncio.gather(*[asyncio.to_thread(run_commands_on_instance, ssh, [command]) for command in commands])
+
+    ssh.close()
+
+# if __name__ == "__main__":
+async def main():
     
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
     KEY_NAME = os.getenv('AWS_KEY_NAME')
-    # VPC_ID = os.getenv('AWS_VPC_ID')
     URL = os.getenv('URL')
     NORDVPN_USERNAME = os.getenv('NORDVPN_USERNAME')
     NORDVPN_PASSWORD = os.getenv('NORDVPN_PASSWORD')
-    SOURCE_EMAIL = os.getenv('SOURCE_EMAIL')
-    DESTINATION_EMAIL = os.getenv('DESTINATION_EMAIL')
-    EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
     REGION_NAME = os.getenv('REGION_NAME')
     INSTANCE_TYPE = os.getenv('INSTANCE_TYPE')
-    VPN_COUNT = int(os.getenv('VPN_COUNT'))
-    NON_VPN_COUNT = int(os.getenv('NON_VPN_COUNT'))
+    INSTANCE_COUNT = int(os.getenv('INSTANCE_COUNT'))
     GROUP_NAME = os.getenv('GROUP_NAME')
     INTERVAL = int(os.getenv('INTERVAL'))
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
@@ -181,10 +185,9 @@ if __name__ == "__main__":
         ec2=ec2, 
         group_name=GROUP_NAME, 
         description=DESCRIPTION, 
-        # vpc_id=VPC_ID,
-        )
+    )
         
-    COMMON_USER_DATA_1 = rf"""
+    USER_DATA = rf"""
     <powershell>
     # Set the Administrator password (ensure it meets complexity requirements)
     net user Administrator "{ADMIN_PASSWORD}"
@@ -196,52 +199,56 @@ if __name__ == "__main__":
     # Allow RDP through Windows Firewall
     netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
 
-    # Ensure the server is set to auto-logon (optional, for GUI operations)
-    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Force
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -Value "1"
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -Value "Administrator"
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -Value "{ADMIN_PASSWORD}"
-
-    # Create a DEBUG file on the Desktop
-    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'DEBUG_HERE' -ItemType 'file' -Force
-
-
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
     Start-Process -FilePath "C:\Users\Administrator\Desktop\python-installer.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1" -Wait
     Remove-Item "C:\Users\Administrator\Desktop\python-installer.exe"
 
-    """
-
-    COMMON_USER_DATA_2 = rf"""
     # Download the Python script and requirements.txt to the Desktop
-    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'downloading files' -ItemType 'file' -Force
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
 
-    # Create a DEBUG file on the Desktop
-    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
-
-    start msedge --guest --remote-debugging-port=9222 "about:blank"
-
+    # Install required packages
     cd C:\Users\Administrator\Desktop
     pip install -r requirements.txt
-    Start-Sleep -Seconds 5
-    python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}
-    echo "python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}" >> command.txt
 
     </powershell>
     """
 
-    NON_VPN_USER_DATA = COMMON_USER_DATA_1 + """
-    Write-Host 'No VPN configured on this instance.'
-    """ + COMMON_USER_DATA_2
+    instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, INSTANCE_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
 
-    VPN_USER_DATA = COMMON_USER_DATA_1 + f"""
-    # Additional commands to set up and connect to NordVPN (You may need to find a Windows-compatible NordVPN client)
-    Write-Host "Setting up and connecting to NordVPN..."
-    # Install and configure NordVPN client for Windows
-    # Connect to NordVPN using the provided credentials
-    """ + COMMON_USER_DATA_2
+    # if instance_ids:
+    #     print(f"Instances launched successfully. Instance IDs: {instance_ids}")
+        
+    #     for instance_id in instance_ids:
+    #         print(f"Connecting to instance: {instance_id}")
+    #         ssh = connect_to_instance(instance_id, KEY_NAME, REGION_NAME)
+            
+    #         commands = [
+    #             'cd Desktop',
+    #             'pip install -r requirements.txt',
+    #             'start msedge --guest --remote-debugging-port=9222 "{URL}"',
+    #             'timeout /t 10',
+    #             f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
+    #         ]
+            
+    #         run_commands_on_instance(ssh, commands)
+            
+    #         ssh.close()
+    if instance_ids:
+        print(f"Instances launched successfully. Instance IDs: {instance_ids}")
 
-    launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, security_group_id, VPN_USER_DATA, NON_VPN_USER_DATA, REGION_NAME)
+        commands = [
+            'cd Desktop',
+            'pip install -r requirements.txt',
+            'start msedge --guest --remote-debugging-port=9222 "{URL}"',
+            'timeout /t 10',
+            f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
+        ]
+
+        await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_NAME, REGION_NAME, commands) for instance_id in instance_ids])
+    else:
+        print("Failed to launch instances.")
+
+if __name__ == '__main__':
+    asyncio.run(main())
