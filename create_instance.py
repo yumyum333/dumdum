@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name, security_group_id, vpn_user_data, non_vpn_user_data):
+def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name, security_group_id, vpn_user_data, non_vpn_user_data, region_name):
     # Assuming SECURITY_GROUP_IDS contains the ID of the security group you want to modify
     # security_group_id = SECURITY_GROUP_IDS[0]
 
-    ec2 = boto3.client('ec2')
+    ec2 = boto3.client('ec2', region_name=region_name)
 
     # Add a rule to allow inbound RDP traffic from any IP address
     ec2.authorize_security_group_ingress(
@@ -55,8 +55,17 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
         except Exception as e:
             print(f"An error occurred while launching non-VPN instances: {str(e)}")
 
-def create_security_group(ec2, vpc_id, group_name, description):
+
+def get_default_vpc_id(ec2):
+    response = ec2.describe_vpcs(Filters=[{'Name': 'isDefault', 'Values': ['true']}])
+    default_vpc = response['Vpcs'][0]  # Assuming there is always one default VPC
+    return default_vpc['VpcId']
+
+
+def create_security_group(ec2, group_name, description, vpc_id=None):
     """Create a security group and open required ports."""
+    if vpc_id is None:
+        vpc_id = get_default_vpc_id(ec2)
     response = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
     security_group_id = response['GroupId']
     print(f'Security Group Created: {security_group_id} in vpc {vpc_id}.')
@@ -82,24 +91,32 @@ def create_security_group(ec2, vpc_id, group_name, description):
     return security_group_id
 
 if __name__ == "__main__":
-    ec2 = boto3.client('ec2')
+    
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
     KEY_NAME = os.getenv('AWS_KEY_NAME')
-    VPC_ID = os.getenv('AWS_VPC_ID')
+    # VPC_ID = os.getenv('AWS_VPC_ID')
     URL = os.getenv('URL')
     NORDVPN_USERNAME = os.getenv('NORDVPN_USERNAME')
     NORDVPN_PASSWORD = os.getenv('NORDVPN_PASSWORD')
     SOURCE_EMAIL = os.getenv('SOURCE_EMAIL')
     DESTINATION_EMAIL = os.getenv('DESTINATION_EMAIL')
     EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+    REGION_NAME = os.getenv('REGION_NAME')
+    INSTANCE_TYPE = os.getenv('INSTANCE_TYPE')
+    VPN_COUNT = int(os.getenv('VPN_COUNT'))
+    NON_VPN_COUNT = int(os.getenv('NON_VPN_COUNT'))
+    GROUP_NAME = os.getenv('GROUP_NAME')
+    INTERVAL = int(os.getenv('INTERVAL'))
 
-    INSTANCE_TYPE = 't2.micro'
-    VPN_COUNT = 0
-    NON_VPN_COUNT = 9
-    GROUP_NAME = "OpenAllPortsGroup"
     DESCRIPTION = "Security group for instance access on all ports from any IP"
-    security_group_id = create_security_group(ec2, VPC_ID, GROUP_NAME, DESCRIPTION)
-    INTERVAL = 1
+    ec2 = boto3.client('ec2')
+    security_group_id = create_security_group(
+        ec2=ec2, 
+        group_name=GROUP_NAME, 
+        description=DESCRIPTION, 
+        # vpc_id=VPC_ID,
+        )
+    
 
     # Common Operations for All Instances (Non-VPN and VPN)
     COMMON_USER_DATA = f"""#!/bin/bash
@@ -144,4 +161,4 @@ if __name__ == "__main__":
 
     # launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, SECURITY_GROUP_IDS, VPN_USER_DATA, NON_VPN_USER_DATA)
 
-    launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, security_group_id, VPN_USER_DATA, NON_VPN_USER_DATA)
+    launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, security_group_id, VPN_USER_DATA, NON_VPN_USER_DATA, REGION_NAME)
