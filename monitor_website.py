@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
+import boto3
 
 def get_ip_and_hostname():
     hostname = socket.gethostname()
@@ -22,7 +23,7 @@ def send_email(source_email, destination_email, email_password, message):
     msg = MIMEMultipart()
     msg['From'] = source_email
     msg['To'] = destination_email
-    msg['Subject'] = 'CHANGE DETECTED OR ERROR OCCURRED'
+    msg['Subject'] = 'instance notification'
     msg.attach(MIMEText(message, 'plain'))
     
     server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -32,8 +33,41 @@ def send_email(source_email, destination_email, email_password, message):
     server.sendmail(source_email, destination_email, text)
     server.quit()
 
-def monitor_website(url, check_interval, source_email, destination_email, email_password):
+def send_cloudwatch_log(log_group, log_stream, message):
+    client = boto3.client('logs')
+    try:
+        response = client.describe_log_streams(logGroupName=log_group)
+        log_streams = response['logStreams']
+        sequence_token = None
+        for stream in log_streams:
+            if stream['logStreamName'] == log_stream:
+                if 'uploadSequenceToken' in stream:
+                    sequence_token = stream['uploadSequenceToken']
+                break
+
+        log_event = {
+            'logGroupName': log_group,
+            'logStreamName': log_stream,
+            'logEvents': [
+                {
+                    'timestamp': int(time.time() * 1000),
+                    'message': message
+                },
+            ],
+        }
+        if sequence_token:
+            log_event['sequenceToken'] = sequence_token
+
+        client.put_log_events(**log_event)
+        print("Log sent to CloudWatch")
+    except client.exceptions.ResourceNotFoundException:
+        print("Log group or stream not found")
+    except Exception as e:
+        print(f"Failed to send log to CloudWatch: {e}")
+
+def monitor_website(url, check_interval, source_email, destination_email, email_password, log_group, log_stream):
     hostname, private_ip_address, public_ip_address = get_ip_and_hostname()
+    debug_message = "instance opened the browser successfully."
     email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
     
     try:
@@ -43,17 +77,17 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
         driver.get(url)
 
         initial_content = driver.page_source
-        print(email_message)
-        send_email(source_email, destination_email, email_password, email_message)
+        send_email(source_email, destination_email, email_password, debug_message)
+        send_cloudwatch_log(log_group, log_stream, debug_message)
         count = 0
         try:
             while True:
                 time.sleep(check_interval)
                 driver.refresh()
                 new_content = driver.page_source
-                if (new_content != initial_content) or (count >= 5):
-                    print("Change detected!")
-                    send_email(source_email, destination_email, email_password, "Change detected at " + url)
+                if new_content != initial_content or count >= 10:
+                    send_email(source_email, destination_email, email_password, email_message)
+                    send_cloudwatch_log(log_group, log_stream, email_message)
                     break
                 else:
                     print("No change detected.")
@@ -64,6 +98,7 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
         error_message = f"error: {e}"
         print(error_message)
         send_email(source_email, destination_email, email_password, error_message)
+        send_cloudwatch_log(log_group, log_stream, error_message)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Monitor a website for changes.')
@@ -72,7 +107,9 @@ if __name__ == "__main__":
     parser.add_argument('--source-email', type=str, required=True, help='The source email address for the email.')
     parser.add_argument('--destination-email', type=str, required=True, help='The destination email address for the email.')
     parser.add_argument('--email-password', type=str, required=True, help='The password for the source email account.')
+    parser.add_argument('--log-group', type=str, required=True, help='The CloudWatch log group name.')
+    parser.add_argument('--log-stream', type=str, required=True, help='The CloudWatch log stream name.')
     
     args = parser.parse_args()
     
-    monitor_website(args.url, args.interval, args.source_email, args.destination_email, args.email_password)
+    monitor_website(args.url, args.interval, args.source_email, args.destination_email, args.email_password, args.log_group, args.log_stream)
