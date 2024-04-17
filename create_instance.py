@@ -188,5 +188,4 @@ if __name__ == "__main__":
     # Connect to NordVPN using the provided credentials
     """ + COMMON_USER_DATA_2
 
-    breakpoint()
     launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, security_group_id, VPN_USER_DATA, NON_VPN_USER_DATA, REGION_NAME)
