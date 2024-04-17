@@ -68,23 +68,17 @@ def send_cloudwatch_log(log_group, log_stream, message):
     except Exception as e:
         print(f"Failed to send log to CloudWatch: {e}")
 
-def monitor_website(url, check_interval, source_email, destination_email, email_password, log_group, log_stream):
+def monitor_website(url, check_interval, log_group, log_stream):
     hostname, private_ip_address, public_ip_address = get_ip_and_hostname()
     debug_message = "instance opened the browser successfully."
     email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
     
     try:
-        # Check if Edge is running and open a new tab if it is
-        # edge_check = os.system('powershell "Get-Process msedge -ErrorAction SilentlyContinue"')
-        # if edge_check == 0:
-        #     os.system('powershell "Start-Process msedge -ArgumentList \'about:newtab\'"')
-        # else:
         service = EdgeService(EdgeChromiumDriverManager().install())
         driver = webdriver.Edge(service=service)
         driver.get(url)
 
         initial_content = driver.page_source
-        # send_email(source_email, destination_email, email_password, debug_message)
         send_cloudwatch_log(log_group, log_stream, debug_message)
         count = 0
         try:
@@ -93,7 +87,6 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
                 driver.refresh()
                 new_content = driver.page_source
                 if new_content != initial_content or count >= 10:
-                    # send_email(source_email, destination_email, email_password, email_message)
                     send_cloudwatch_log(log_group, log_stream, email_message)
                     break
                 else:
@@ -104,16 +97,12 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
     except Exception as e:
         error_message = f"error: {e}"
         print(error_message)
-        # send_email(source_email, destination_email, email_password, error_message)
         send_cloudwatch_log(log_group, log_stream, error_message)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Monitor a website for changes.')
     parser.add_argument('--url', type=str, required=True, help='The URL of the website to monitor.')
     parser.add_argument('--interval', type=int, default=300, help='Check interval in seconds. Default is 300 seconds.')
-    # parser.add_argument('--source-email', type=str, required=True, help='The source email address for the email.')
-    # parser.add_argument('--destination-email', type=str, required=True, help='The destination email address for the email.')
-    # parser.add_argument('--email-password', type=str, required=True, help='The password for the source email account.')
     parser.add_argument('--log-group', type=str, required=True, help='The CloudWatch log group name.')
     parser.add_argument('--log-stream', type=str, required=True, help='The CloudWatch log stream name.')
     

@@ -221,7 +221,9 @@ if __name__ == "__main__":
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
 
     # Install requirements and run the script in one go
-    cd C:\Users\Administrator\Desktop; pip install -r requirements.txt; python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}
+    cd C:\Users\Administrator\Desktop
+    echo "pip install -r requirements.txt; python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}" > command.txt
+    pip install -r requirements.txt; python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}
     </powershell>
     """
 
