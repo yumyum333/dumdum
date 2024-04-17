@@ -216,15 +216,25 @@ if __name__ == "__main__":
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'downloading files' -ItemType 'file' -Force
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
-    
+
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
 
-    # Install requirements and run the script in one go
-    cd C:\Users\Administrator\Desktop
-    echo "pip install -r requirements.txt; python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME}" > command.txt
-    python -m pip install -r requirements.txt
-    python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME}
+    # Create a virtual environment
+    python -m venv C:\Users\Administrator\Desktop\venv
+
+    # Activate the virtual environment
+    C:\Users\Administrator\Desktop\venv\Scripts\Activate.ps1
+
+    # Install requirements in the virtual environment
+    python -m pip install -r C:\Users\Administrator\Desktop\requirements.txt
+
+    # Create a log file on the Desktop
+    $logFile = "C:\Users\Administrator\Desktop\script_log.txt"
+    New-Item -Path $logFile -ItemType File -Force
+
+    # Run the script in the virtual environment and redirect output to the log file
+    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} *>> $logFile
     </powershell>
     """
 
