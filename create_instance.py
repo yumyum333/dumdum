@@ -1,4 +1,9 @@
 import boto3
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name, security_group_id, vpn_user_data, non_vpn_user_data):
     # Assuming SECURITY_GROUP_IDS contains the ID of the security group you want to modify
@@ -77,14 +82,13 @@ def create_security_group(ec2, vpc_id, group_name, description):
     return security_group_id
 
 if __name__ == "__main__":
-    IMAGE_ID = 'ami-0abcdef1234567890'
-    INSTANCE_TYPE = 't2.micro'
-    VPN_COUNT = 0  # Number of VPN instances
-    NON_VPN_COUNT = 9  # Number of non-VPN instances
-    KEY_NAME = 'YourKeyName'
-    # SECURITY_GROUP_IDS = ['sg-0123456789abcdef0']
     ec2 = boto3.client('ec2')
-    VPC_ID = 'your-vpc-id'  # Replace with your VPC ID
+    IMAGE_ID = os.getenv('AMI_IMAGE_ID')
+    INSTANCE_TYPE = 't2.micro'
+    VPN_COUNT = 0
+    NON_VPN_COUNT = 9
+    KEY_NAME = os.getenv('AWS_KEY_NAME')
+    VPC_ID = os.getenv('AWS_VPC_ID')
     GROUP_NAME = "OpenAllPortsGroup"
     DESCRIPTION = "Security group for instance access on all ports from any IP"
     security_group_id = create_security_group(ec2, VPC_ID, GROUP_NAME, DESCRIPTION)
