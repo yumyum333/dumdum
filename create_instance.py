@@ -172,6 +172,8 @@ if __name__ == "__main__":
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
     LOG_GROUP = os.getenv('LOG_GROUP')
     LOG_STREAM = os.getenv('LOG_STREAM')
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 
     DESCRIPTION = "Security group for instance access on all ports from any IP"
     ec2 = boto3.client('ec2', region_name=REGION_NAME)
@@ -220,6 +222,8 @@ if __name__ == "__main__":
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
 
+    start msedge --guest --remote-debugging-port=9222 "about:blank"
+
     # Create a virtual environment
     python -m venv C:\Users\Administrator\Desktop\venv
 
@@ -234,7 +238,7 @@ if __name__ == "__main__":
     New-Item -Path $logFile -ItemType File -Force
 
     # Run the script in the virtual environment and redirect output to the log file
-    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} *>> $logFile
+    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY} *>> $logFile
     </powershell>
     """
 

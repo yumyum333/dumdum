@@ -2,6 +2,7 @@ import argparse
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
+from selenium.webdriver.edge.options import Options
 import time
 import socket
 import smtplib
@@ -36,8 +37,8 @@ def send_email(source_email, destination_email, email_password, message):
     server.sendmail(source_email, destination_email, text)
     server.quit()
 
-def send_cloudwatch_log(region_name, log_group, log_stream, message):
-    client = boto3.client('logs', region_name=region_name)
+def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_key_id, aws_secret_access_key):
+    client = boto3.client('logs', region_name=region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
     try:
         response = client.describe_log_streams(logGroupName=log_group)
         log_streams = response['logStreams']
@@ -68,18 +69,23 @@ def send_cloudwatch_log(region_name, log_group, log_stream, message):
     except Exception as e:
         print(f"Failed to send log to CloudWatch: {e}")
 
-def monitor_website(url, check_interval, log_group, log_stream, region_name="eu-west-2"):
+def monitor_website(url, check_interval, log_group, log_stream, region_name, aws_access_key_id, aws_secret_access_key):
     hostname, private_ip_address, public_ip_address = get_ip_and_hostname()
     debug_message = "instance opened the browser successfully."
     email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
-    
+      
     try:
-        service = EdgeService(EdgeChromiumDriverManager().install())
-        driver = webdriver.Edge(service=service)
+        options = Options()
+        options.add_experimental_option("debuggerAddress", "localhost:9222")
+        driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
+        
+        # Switch to the first tab (index 0)
+        driver.switch_to.window(driver.window_handles[0])
+        
         driver.get(url)
 
         initial_content = driver.page_source
-        send_cloudwatch_log(region_name, log_group, log_stream, debug_message)
+        send_cloudwatch_log(region_name, log_group, log_stream, debug_message, aws_access_key_id, aws_secret_access_key)
         count = 0
         try:
             while True:
@@ -87,7 +93,7 @@ def monitor_website(url, check_interval, log_group, log_stream, region_name="eu-
                 driver.refresh()
                 new_content = driver.page_source
                 if new_content != initial_content or count >= 10:
-                    send_cloudwatch_log(region_name, log_group, log_stream, email_message)
+                    send_cloudwatch_log(region_name, log_group, log_stream, email_message, aws_access_key_id, aws_secret_access_key)
                     break
                 else:
                     print("No change detected.")
@@ -97,7 +103,7 @@ def monitor_website(url, check_interval, log_group, log_stream, region_name="eu-
     except Exception as e:
         error_message = f"error: {e}"
         print(error_message)
-        send_cloudwatch_log(region_name, log_group, log_stream, error_message)
+        send_cloudwatch_log(region_name, log_group, log_stream, error_message, aws_access_key_id, aws_secret_access_key)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Monitor a website for changes.')
@@ -106,7 +112,9 @@ if __name__ == "__main__":
     parser.add_argument('--log-group', type=str, required=True, help='The CloudWatch log group name.')
     parser.add_argument('--log-stream', type=str, required=True, help='The CloudWatch log stream name.')
     parser.add_argument('--region-name', type=str, default="eu-west-2", help='The AWS region name. Default is "eu-west-2".')
+    parser.add_argument('--aws-access-key-id', type=str, required=True, help='The AWS access key ID.')
+    parser.add_argument('--aws-secret-access-key', type=str, required=True, help='The AWS secret access key.')
     
     args = parser.parse_args()
     
-    monitor_website(args.url, args.interval, args.log_group, args.log_stream, args.region_name)
+    monitor_website(args.url, args.interval, args.log_group, args.log_stream, args.region_name, args.aws_access_key_id, args.aws_secret_access_key)
