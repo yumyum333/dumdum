@@ -75,13 +75,13 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
     
     try:
         # Check if Edge is running and open a new tab if it is
-        edge_check = os.system('powershell "Get-Process msedge -ErrorAction SilentlyContinue"')
-        if edge_check == 0:
-            os.system('powershell "Start-Process msedge -ArgumentList \'about:newtab\'"')
-        else:
-            service = EdgeService(EdgeChromiumDriverManager().install())
-            driver = webdriver.Edge(service=service)
-            driver.get(url)
+        # edge_check = os.system('powershell "Get-Process msedge -ErrorAction SilentlyContinue"')
+        # if edge_check == 0:
+        #     os.system('powershell "Start-Process msedge -ArgumentList \'about:newtab\'"')
+        # else:
+        service = EdgeService(EdgeChromiumDriverManager().install())
+        driver = webdriver.Edge(service=service)
+        driver.get(url)
 
         initial_content = driver.page_source
         send_email(source_email, destination_email, email_password, debug_message)

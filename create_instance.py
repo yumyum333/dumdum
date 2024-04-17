@@ -179,13 +179,27 @@ if __name__ == "__main__":
         description=DESCRIPTION, 
         # vpc_id=VPC_ID,
         )
-    
+        
     COMMON_USER_DATA_1 = rf"""<powershell>
+    # Set the Administrator password (ensure it meets complexity requirements)
+    net user Administrator "{ADMIN_PASSWORD}"
+
+    # Enable RDP
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+    # Allow RDP through Windows Firewall
+    netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+
+    # Ensure the server is set to auto-logon (optional, for GUI operations)
+    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -Value "1"
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -Value "Administrator"
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -Value "{ADMIN_PASSWORD}"
+
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'DEBUG_HERE' -ItemType 'file' -Force
-
-    # Set the Administrator password
-    net user Administrator "{ADMIN_PASSWORD}"
+    </powershell>
     """
 
     COMMON_USER_DATA_1point5 = r"""
@@ -193,22 +207,8 @@ if __name__ == "__main__":
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'Installing chrome' -ItemType 'file' -Force
 
 
-    $Path = $env:TEMP;  
+    start msedge --guest "https://en.wikipedia.org/wiki/Glastonbury_Festival"
 
-    $Installerchrome = "GoogleChromeInstaller.exe";  
-    (new-object System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$Path\$Installerchrome"); 
-    & "$Path\$Installerchrome" /silent /install; 
-    $ProcesstoMonitor = "GoogleChromeInstaller"; 
-
-    Do  
-    { $ProcessFound = Get-Process | ?{$ProcesstoMonitor -contains $_.Name} | Select-Object -ExpandProperty Name;  
-    If ($ProcessFound) { "Still running: $($ProcessFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 }  
-    else  
-    { rm "$Path\$Installerchrome" -ErrorAction SilentlyContinue -Verbose } }  
-    Until (!$ProcessFound) 
-
-    # Open Chrome without signing in and navigate to YouTube
-    Start-Process "chrome.exe" "--no-first-run --no-default-browser-check https://www.youtube.com"
 
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
@@ -226,14 +226,12 @@ if __name__ == "__main__":
 
     COMMON_USER_DATA_2 = rf"""
     # Download the Python script and requirements.txt to the Desktop
-    Invoke-WebRequest -Uri "https://github.com/yumyum333/dumdum/blob/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
-    Invoke-WebRequest -Uri "https://github.com/yumyum333/dumdum/blob/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
     pip install -r C:\Users\Administrator\Desktop\requirements.txt
 
-    
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
-
 
     # Run the Python script with arguments 
     python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD}
