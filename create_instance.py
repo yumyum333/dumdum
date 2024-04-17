@@ -182,7 +182,8 @@ if __name__ == "__main__":
         # vpc_id=VPC_ID,
         )
         
-    COMMON_USER_DATA_1 = rf"""<powershell>
+    COMMON_USER_DATA_1 = rf"""
+    <powershell>
     # Set the Administrator password (ensure it meets complexity requirements)
     net user Administrator "{ADMIN_PASSWORD}"
 
@@ -201,12 +202,6 @@ if __name__ == "__main__":
 
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'DEBUG_HERE' -ItemType 'file' -Force
-    </powershell>
-    """
-
-    COMMON_USER_DATA_1point5 = r"""
-    # Create a DEBUG file on the Desktop
-    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'Installing chrome' -ItemType 'file' -Force
 
 
     # Install Python and virtual environment tools
@@ -214,29 +209,27 @@ if __name__ == "__main__":
     Start-Process -FilePath "C:\Users\Administrator\Desktop\python-installer.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1" -Wait
     Remove-Item "C:\Users\Administrator\Desktop\python-installer.exe"
 
-    # Create a DEBUG file on the Desktop
-    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'creating venv' -ItemType 'file' -Force
     """
 
     COMMON_USER_DATA_2 = rf"""
     # Download the Python script and requirements.txt to the Desktop
+    New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'downloading files' -ItemType 'file' -Force
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
     
-
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
 
     # Install requirements and run the script in one go
     cd C:\Users\Administrator\Desktop; pip install -r requirements.txt; python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}
-
+    </powershell>
     """
 
-    NON_VPN_USER_DATA = COMMON_USER_DATA_1 + COMMON_USER_DATA_1point5 + """
+    NON_VPN_USER_DATA = COMMON_USER_DATA_1 + """
     Write-Host 'No VPN configured on this instance.'
     """ + COMMON_USER_DATA_2
 
-    VPN_USER_DATA = COMMON_USER_DATA_1 + COMMON_USER_DATA_1point5 + f"""
+    VPN_USER_DATA = COMMON_USER_DATA_1 + f"""
     # Additional commands to set up and connect to NordVPN (You may need to find a Windows-compatible NordVPN client)
     Write-Host "Setting up and connecting to NordVPN..."
     # Install and configure NordVPN client for Windows
