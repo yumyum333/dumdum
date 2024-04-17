@@ -1,5 +1,7 @@
 import argparse
 from selenium import webdriver
+from selenium.webdriver.edge.service import Service as EdgeService
+from webdriver_manager.microsoft import EdgeChromiumDriverManager
 import time
 import socket
 import smtplib
@@ -71,9 +73,8 @@ def monitor_website(url, check_interval, source_email, destination_email, email_
     email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
     
     try:
-        options = webdriver.ChromeOptions()
-        # options.add_argument('--headless')
-        driver = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=options)
+        service = EdgeService(EdgeChromiumDriverManager().install())
+        driver = webdriver.Edge(service=service)
         driver.get(url)
 
         initial_content = driver.page_source
