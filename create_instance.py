@@ -1,6 +1,8 @@
 import boto3
 import os
 from dotenv import load_dotenv
+import time
+import botocore
 
 # Load environment variables from .env file
 load_dotenv()
@@ -11,18 +13,33 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
 
     ec2 = boto3.client('ec2', region_name=region_name)
 
-    # Add a rule to allow inbound RDP traffic from any IP address
-    ec2.authorize_security_group_ingress(
-        GroupId=security_group_id,
-        IpPermissions=[
-            {
-                'IpProtocol': 'tcp',
-                'FromPort': 3389,
-                'ToPort': 3389,
-                'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
-            },
-        ],
-    )
+    # Check if the rule already exists
+    try:
+        rules = ec2.describe_security_group_rules(Filters=[
+            {'Name': 'group-id', 'Values': [security_group_id]}
+        ])
+        for rule in rules['SecurityGroupRules']:
+            if rule['FromPort'] == 3389 and rule['ToPort'] == 3389 and rule['IpProtocol'] == 'tcp':
+                print("Rule for TCP port 3389 already exists. Skipping rule addition.")
+                break
+        else:
+            # Add the rule if it does not exist
+            ec2.authorize_security_group_ingress(
+                GroupId=security_group_id,
+                IpPermissions=[
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 3389,
+                        'ToPort': 3389,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
+                    },
+                ],
+            )
+            print("Ingress rule for TCP port 3389 set successfully.")
+    except botocore.exceptions.ClientError as e:
+        print(f"An error occurred: {e}")
+        raise
+
     # Launch VPN instances
     if vpn_count > 0:
         try:
@@ -32,7 +49,7 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
                 MinCount=1,
                 MaxCount=vpn_count,
                 KeyName=key_name,
-                SecurityGroupIds=security_group_id,
+                SecurityGroupIds=[security_group_id],
                 UserData=vpn_user_data
             )
             print(f"Successfully launched {vpn_count} VPN instances.")
@@ -48,7 +65,7 @@ def launch_instances(image_id, instance_type, vpn_count, non_vpn_count, key_name
                 MinCount=1,
                 MaxCount=non_vpn_count,
                 KeyName=key_name,
-                SecurityGroupIds=security_group_id,
+                SecurityGroupIds=[security_group_id],
                 UserData=non_vpn_user_data
             )
             print(f"Successfully launched {non_vpn_count} non-VPN instances.")
@@ -61,11 +78,26 @@ def get_default_vpc_id(ec2):
     default_vpc = response['Vpcs'][0]  # Assuming there is always one default VPC
     return default_vpc['VpcId']
 
-
 def create_security_group(ec2, group_name, description, vpc_id=None):
-    """Create a security group and open required ports."""
+    """Create a security group and open required ports, or return existing one if it already exists."""
     if vpc_id is None:
         vpc_id = get_default_vpc_id(ec2)
+
+    # Check if the security group already exists
+    try:
+        existing_groups = ec2.describe_security_groups(Filters=[
+            {'Name': 'group-name', 'Values': [group_name]},
+            {'Name': 'vpc-id', 'Values': [vpc_id]}
+        ])
+        if existing_groups['SecurityGroups']:
+            existing_group_id = existing_groups['SecurityGroups'][0]['GroupId']
+            print(f"Security Group '{group_name}' already exists with ID: {existing_group_id}")
+            return existing_group_id
+    except botocore.exceptions.ClientError as e:
+        print(f"Failed to check for existing security groups: {e}")
+        raise
+
+    # Create new security group
     response = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
     security_group_id = response['GroupId']
     print(f'Security Group Created: {security_group_id} in vpc {vpc_id}.')
@@ -90,6 +122,7 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
     )
     return security_group_id
 
+
 if __name__ == "__main__":
     
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
@@ -109,7 +142,7 @@ if __name__ == "__main__":
     INTERVAL = int(os.getenv('INTERVAL'))
 
     DESCRIPTION = "Security group for instance access on all ports from any IP"
-    ec2 = boto3.client('ec2')
+    ec2 = boto3.client('ec2', region_name=REGION_NAME)
     security_group_id = create_security_group(
         ec2=ec2, 
         group_name=GROUP_NAME, 
@@ -117,9 +150,8 @@ if __name__ == "__main__":
         # vpc_id=VPC_ID,
         )
     
-
     # Common Operations for All Instances (Non-VPN and VPN)
-    COMMON_USER_DATA = f"""#!/bin/bash
+    COMMON_USER_DATA_1 = f"""#!/bin/bash
     # Install desktop environment and XRDP
     apt-get update
     apt-get install -y xfce4 xfce4-session xrdp
@@ -133,7 +165,9 @@ if __name__ == "__main__":
     python3 -m venv /home/ubuntu/venv
     source /home/ubuntu/venv/bin/activate
     pip install --upgrade pip
+    """
 
+    COMMON_USER_DATA_2 = f"""
     # Download the Python script and requirements.txt (Assuming they are available via a public URL)
     wget https://github.com/yumyum333/dumdum/blob/main/monitor_website.py -P /home/ubuntu/
     wget https://github.com/yumyum333/dumdum/blob/main/requirements.txt -P /home/ubuntu/
@@ -142,13 +176,12 @@ if __name__ == "__main__":
     # Run the Python script with arguments 
     python /home/ubuntu/monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD}
     """
-    # TODO: fix args, and storage of the script and requirements.txt
 
-    NON_VPN_USER_DATA = COMMON_USER_DATA + """
+    NON_VPN_USER_DATA = COMMON_USER_DATA_1 + """
     echo 'No VPN configured on this instance.'
-    """
+    """ + COMMON_USER_DATA_2
 
-    VPN_USER_DATA = COMMON_USER_DATA + f"""
+    VPN_USER_DATA = COMMON_USER_DATA_1 + f"""
     # Additional commands to set up and connect to NordVPN
     echo "Setting up and connecting to NordVPN..."
     wget https://nordvpn.com/download/linux/
@@ -157,8 +190,6 @@ if __name__ == "__main__":
     apt-get install nordvpn
     nordvpn login --username {NORDVPN_USERNAME} --password {NORDVPN_PASSWORD}
     nordvpn connect
-    """
-
-    # launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, SECURITY_GROUP_IDS, VPN_USER_DATA, NON_VPN_USER_DATA)
+    """ + COMMON_USER_DATA_2
 
     launch_instances(IMAGE_ID, INSTANCE_TYPE, VPN_COUNT, NON_VPN_COUNT, KEY_NAME, security_group_id, VPN_USER_DATA, NON_VPN_USER_DATA, REGION_NAME)

@@ -22,7 +22,7 @@ def send_email(source_email, destination_email, email_password, message):
     msg = MIMEMultipart()
     msg['From'] = source_email
     msg['To'] = destination_email
-    msg['Subject'] = 'CHANGE DETECTED'
+    msg['Subject'] = 'CHANGE DETECTED OR ERROR OCCURRED'
     msg.attach(MIMEText(message, 'plain'))
     
     server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -34,33 +34,34 @@ def send_email(source_email, destination_email, email_password, message):
 
 def monitor_website(url, check_interval, source_email, destination_email, email_password):
     hostname, private_ip_address, public_ip_address = get_ip_and_hostname()
-    email_message = f"CHANGE DETECTED\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
+    email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
     
     try:
         options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
+        # options.add_argument('--headless')
         driver = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=options)
         driver.get(url)
 
         initial_content = driver.page_source
         print(email_message)
         send_email(source_email, destination_email, email_password, email_message)
-        
+        count = 0
         try:
             while True:
                 time.sleep(check_interval)
                 driver.refresh()
                 new_content = driver.page_source
-                if new_content != initial_content:
+                if (new_content != initial_content) or (count >= 5):
                     print("Change detected!")
                     send_email(source_email, destination_email, email_password, "Change detected at " + url)
                     break
                 else:
                     print("No change detected.")
+                    count += 1
         finally:
             driver.quit()
     except Exception as e:
-        error_message = f"An error occurred: {e}"
+        error_message = f"error: {e}"
         print(error_message)
         send_email(source_email, destination_email, email_password, error_message)
 
