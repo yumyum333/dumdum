@@ -111,12 +111,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Monitor a website for changes.')
     parser.add_argument('--url', type=str, required=True, help='The URL of the website to monitor.')
     parser.add_argument('--interval', type=int, default=300, help='Check interval in seconds. Default is 300 seconds.')
-    parser.add_argument('--source-email', type=str, required=True, help='The source email address for the email.')
-    parser.add_argument('--destination-email', type=str, required=True, help='The destination email address for the email.')
-    parser.add_argument('--email-password', type=str, required=True, help='The password for the source email account.')
+    # parser.add_argument('--source-email', type=str, required=True, help='The source email address for the email.')
+    # parser.add_argument('--destination-email', type=str, required=True, help='The destination email address for the email.')
+    # parser.add_argument('--email-password', type=str, required=True, help='The password for the source email account.')
     parser.add_argument('--log-group', type=str, required=True, help='The CloudWatch log group name.')
     parser.add_argument('--log-stream', type=str, required=True, help='The CloudWatch log stream name.')
     
     args = parser.parse_args()
     
-    monitor_website(args.url, args.interval, args.source_email, args.destination_email, args.email_password, args.log_group, args.log_stream)
+    monitor_website(args.url, args.interval, args.log_group, args.log_stream)

@@ -222,14 +222,14 @@ if __name__ == "__main__":
     # Download the Python script and requirements.txt to the Desktop
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
-    pip install -r C:\Users\Administrator\Desktop\requirements.txt
+    
 
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'running script' -ItemType 'file' -Force
 
-    # Run the Python script with arguments 
-    python C:\Users\Administrator\Desktop\monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}
-    </powershell>
+    # Install requirements and run the script in one go
+    cd C:\Users\Administrator\Desktop; pip install -r requirements.txt; python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM}
+
     """
 
     NON_VPN_USER_DATA = COMMON_USER_DATA_1 + COMMON_USER_DATA_1point5 + """
