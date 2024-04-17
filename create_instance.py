@@ -84,17 +84,25 @@ def create_security_group(ec2, vpc_id, group_name, description):
 if __name__ == "__main__":
     ec2 = boto3.client('ec2')
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
+    KEY_NAME = os.getenv('AWS_KEY_NAME')
+    VPC_ID = os.getenv('AWS_VPC_ID')
+    URL = os.getenv('URL')
+    NORDVPN_USERNAME = os.getenv('NORDVPN_USERNAME')
+    NORDVPN_PASSWORD = os.getenv('NORDVPN_PASSWORD')
+    SOURCE_EMAIL = os.getenv('SOURCE_EMAIL')
+    DESTINATION_EMAIL = os.getenv('DESTINATION_EMAIL')
+    EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+
     INSTANCE_TYPE = 't2.micro'
     VPN_COUNT = 0
     NON_VPN_COUNT = 9
-    KEY_NAME = os.getenv('AWS_KEY_NAME')
-    VPC_ID = os.getenv('AWS_VPC_ID')
     GROUP_NAME = "OpenAllPortsGroup"
     DESCRIPTION = "Security group for instance access on all ports from any IP"
     security_group_id = create_security_group(ec2, VPC_ID, GROUP_NAME, DESCRIPTION)
+    INTERVAL = 1
 
     # Common Operations for All Instances (Non-VPN and VPN)
-    COMMON_USER_DATA = """#!/bin/bash
+    COMMON_USER_DATA = f"""#!/bin/bash
     # Install desktop environment and XRDP
     apt-get update
     apt-get install -y xfce4 xfce4-session xrdp
@@ -115,7 +123,7 @@ if __name__ == "__main__":
     pip install -r /home/ubuntu/requirements.txt
 
     # Run the Python script with arguments 
-    python /home/ubuntu/monitor_website.py --arg1 'Value1' --arg2 'Value2'
+    python /home/ubuntu/monitor_website.py --url {URL} --interval {INTERVAL} --source-email {SOURCE_EMAIL} --destination-email {DESTINATION_EMAIL} --email-password {EMAIL_PASSWORD}
     """
     # TODO: fix args, and storage of the script and requirements.txt
 
@@ -123,14 +131,14 @@ if __name__ == "__main__":
     echo 'No VPN configured on this instance.'
     """
 
-    VPN_USER_DATA = COMMON_USER_DATA + """
+    VPN_USER_DATA = COMMON_USER_DATA + f"""
     # Additional commands to set up and connect to NordVPN
     echo "Setting up and connecting to NordVPN..."
     wget https://nordvpn.com/download/linux/
     sh nordvpn-release_1.0.0_all.deb
     apt-get update
     apt-get install nordvpn
-    nordvpn login --username your_username --password your_password
+    nordvpn login --username {NORDVPN_USERNAME} --password {NORDVPN_PASSWORD}
     nordvpn connect
     """
 
