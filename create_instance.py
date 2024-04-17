@@ -186,19 +186,29 @@ if __name__ == "__main__":
 
     # Set the Administrator password
     net user Administrator "{ADMIN_PASSWORD}"
+    """
 
+    COMMON_USER_DATA_1point5 = r"""
     # Create a DEBUG file on the Desktop
     New-Item -Path 'C:\Users\Administrator\Desktop' -Name 'Installing chrome' -ItemType 'file' -Force
 
 
-    # Install Google Chrome
-    $Path = 'C:\Users\Administrator\Desktop\chrome_installer.exe'
-    Invoke-WebRequest 'https://dl.google.com/chrome/install/standalone/ChromeStandaloneSetup64.exe' -OutFile $Path
-    Start-Process -FilePath $Path -Args '/silent /install' -Wait
-    Remove-Item $Path
+    $Path = $env:TEMP;  
 
-    # Open Google Chrome
-    Start-Process -FilePath 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
+    $Installerchrome = "GoogleChromeInstaller.exe";  
+    (new-object System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$Path\$Installerchrome"); 
+    & "$Path\$Installerchrome" /silent /install; 
+    $ProcesstoMonitor = "GoogleChromeInstaller"; 
+
+    Do  
+    { $ProcessFound = Get-Process | ?{$ProcesstoMonitor -contains $_.Name} | Select-Object -ExpandProperty Name;  
+    If ($ProcessFound) { "Still running: $($ProcessFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 }  
+    else  
+    { rm "$Path\$Installerchrome" -ErrorAction SilentlyContinue -Verbose } }  
+    Until (!$ProcessFound) 
+
+    # Open Chrome without signing in and navigate to YouTube
+    Start-Process "chrome.exe" "--no-first-run --no-default-browser-check https://www.youtube.com"
 
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
@@ -230,11 +240,11 @@ if __name__ == "__main__":
     </powershell>
     """
 
-    NON_VPN_USER_DATA = COMMON_USER_DATA_1 + """
+    NON_VPN_USER_DATA = COMMON_USER_DATA_1 + COMMON_USER_DATA_1point5 + """
     Write-Host 'No VPN configured on this instance.'
     """ + COMMON_USER_DATA_2
 
-    VPN_USER_DATA = COMMON_USER_DATA_1 + f"""
+    VPN_USER_DATA = COMMON_USER_DATA_1 + COMMON_USER_DATA_1point5 + f"""
     # Additional commands to set up and connect to NordVPN (You may need to find a Windows-compatible NordVPN client)
     Write-Host "Setting up and connecting to NordVPN..."
     # Install and configure NordVPN client for Windows
