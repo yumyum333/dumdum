@@ -36,8 +36,8 @@ def send_email(source_email, destination_email, email_password, message):
     server.sendmail(source_email, destination_email, text)
     server.quit()
 
-def send_cloudwatch_log(log_group, log_stream, message):
-    client = boto3.client('logs')
+def send_cloudwatch_log(region_name, log_group, log_stream, message):
+    client = boto3.client('logs', region_name=region_name)
     try:
         response = client.describe_log_streams(logGroupName=log_group)
         log_streams = response['logStreams']
@@ -68,7 +68,7 @@ def send_cloudwatch_log(log_group, log_stream, message):
     except Exception as e:
         print(f"Failed to send log to CloudWatch: {e}")
 
-def monitor_website(url, check_interval, log_group, log_stream):
+def monitor_website(url, check_interval, log_group, log_stream, region_name="eu-west-2"):
     hostname, private_ip_address, public_ip_address = get_ip_and_hostname()
     debug_message = "instance opened the browser successfully."
     email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
@@ -79,7 +79,7 @@ def monitor_website(url, check_interval, log_group, log_stream):
         driver.get(url)
 
         initial_content = driver.page_source
-        send_cloudwatch_log(log_group, log_stream, debug_message)
+        send_cloudwatch_log(region_name, log_group, log_stream, debug_message)
         count = 0
         try:
             while True:
@@ -87,7 +87,7 @@ def monitor_website(url, check_interval, log_group, log_stream):
                 driver.refresh()
                 new_content = driver.page_source
                 if new_content != initial_content or count >= 10:
-                    send_cloudwatch_log(log_group, log_stream, email_message)
+                    send_cloudwatch_log(region_name, log_group, log_stream, email_message)
                     break
                 else:
                     print("No change detected.")
@@ -97,7 +97,7 @@ def monitor_website(url, check_interval, log_group, log_stream):
     except Exception as e:
         error_message = f"error: {e}"
         print(error_message)
-        send_cloudwatch_log(log_group, log_stream, error_message)
+        send_cloudwatch_log(region_name, log_group, log_stream, error_message)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Monitor a website for changes.')
@@ -105,7 +105,8 @@ if __name__ == "__main__":
     parser.add_argument('--interval', type=int, default=300, help='Check interval in seconds. Default is 300 seconds.')
     parser.add_argument('--log-group', type=str, required=True, help='The CloudWatch log group name.')
     parser.add_argument('--log-stream', type=str, required=True, help='The CloudWatch log stream name.')
+    parser.add_argument('--region-name', type=str, default="eu-west-2", help='The AWS region name. Default is "eu-west-2".')
     
     args = parser.parse_args()
     
-    monitor_website(args.url, args.interval, args.log_group, args.log_stream)
+    monitor_website(args.url, args.interval, args.log_group, args.log_stream, args.region_name)
