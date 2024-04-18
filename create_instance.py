@@ -250,6 +250,19 @@ async def main():
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
 
+    # Add Microsoft Edge startup command
+    $startupPath = "C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+    $edgeLaunchScript = "Start-Process 'msedge' -ArgumentList 'https://www.example.com'"
+    Set-Content -Path "$startupPath\launchEdge.ps1" -Value $edgeLaunchScript
+
+    # Add startup command for installing requirements and running the monitor script
+    $monitorScript = @"
+    cd C:\Users\Administrator\Desktop
+    pip install -r requirements.txt
+    python monitor_website.py --url '{URL}' --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}
+    "@
+    Set-Content -Path "$startupPath\runMonitor.ps1" -Value $monitorScript
+
     </powershell>
     """
 
