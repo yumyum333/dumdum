@@ -147,20 +147,28 @@ def connect_to_instance(instance_id, key_path, region_name, security_group_id):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    # Load the private key if using key-based authentication
-    # private_key = paramiko.RSAKey.from_private_key_file(key_path)
-
     # Connect to the instance using password
     admin_password = os.getenv('ADMIN_PASSWORD')  # Ensure this environment variable is correctly set
-    try:
-        print(f"Attempting to connect to instance...\nID: {instance_id}\nIP: {public_ip}\nSecurity group: {security_group_id}\nKey: {key_path}")
-        ssh.connect(hostname=public_ip, username="Administrator", password=admin_password, timeout=120, key_filename=key_path)
-        print("SSH connection established.")
-    except Exception as e:
-        print(f"Failed to connect to instance {instance_id}: {e}")
-        return None
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            print(f"Attempt {attempt + 1}: Connecting to instance...\nID: {instance_id}\nIP: {public_ip}\nSecurity group: {security_group_id}\nKey: {key_path}")
+            ssh.connect(hostname=public_ip, username="Administrator", password=admin_password, key_filename=key_path, timeout=30)
+            print("SSH connection established.")
+            return ssh
+        except paramiko.ssh_exception.NoValidConnectionsError as e:
+            print(f"Failed to connect to instance {instance_id}: {e}")
+            if attempt < max_attempts - 1:
+                print("Retrying in 30 seconds...")
+                time.sleep(30)
+            else:
+                print("Maximum retry attempts reached, failing...")
+                return None
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            return None
 
-    return ssh
+    return None
 
 def run_commands_on_instance(ssh, commands):
     print("Running commands on the instance...")
@@ -221,10 +229,17 @@ async def main():
     # Allow RDP through Windows Firewall
     netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
 
-    # Also allow ssh
+    # Install and configure OpenSSH Server
     Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
     Start-Service sshd
     Set-Service -Name sshd -StartupType 'Automatic'
+
+    # Configure SSH to use the default user profile
+    $sshConfPath = "$env:ProgramData\ssh\sshd_config"
+    $sshConfContent = Get-Content -Path $sshConfPath
+    $sshConfContent += "`nMatch User Administrator`n    ForceCommand powershell.exe"
+    Set-Content -Path $sshConfPath -Value $sshConfContent
+    Restart-Service sshd
 
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
@@ -246,7 +261,7 @@ async def main():
         commands = [
             'cd Desktop',
             'pip install -r requirements.txt',
-            'start msedge --guest --remote-debugging-port=9222 "{URL}"',
+            'ex --remote-debugging-port=9222 "{URL}"',
             'timeout /t 10',
             f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
         ]
