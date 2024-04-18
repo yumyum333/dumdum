@@ -13,18 +13,22 @@ import boto3
 import os
 
 def get_ip_and_hostname():
+    print(f"Hostname: {hostname}, Private IP: {private_ip_address}, Public IP: {public_ip_address}")
     hostname = socket.gethostname()
     private_ip_address = socket.gethostbyname(hostname)
     try:
         # Fetch the public IP from AWS metadata service
         public_ip_address = requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=2).text
+        public_ipv4_dns = requests.get('http://169.254.169.254/latest/meta-data/public-hostname', timeout=2).text
     except requests.RequestException:
         # Fallback if not running on AWS or if the request fails
         public_ip_address = "Unavailable"
-    return hostname, private_ip_address, public_ip_address
+        public_ipv4_dns = "Unavailable"
+    return hostname, private_ip_address, public_ip_address, public_ipv4_dns
 
 def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_key_id, aws_secret_access_key):
     client = boto3.client('logs', region_name=region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+    print(f"Sending log to CloudWatch: {message}")
     try:
         response = client.describe_log_streams(logGroupName=log_group)
         log_streams = response['logStreams']
@@ -56,21 +60,23 @@ def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_
         print(f"Failed to send log to CloudWatch: {e}")
 
 def monitor_website(url, check_interval, log_group, log_stream, region_name, aws_access_key_id, aws_secret_access_key):
-    hostname, private_ip_address, public_ip_address = get_ip_and_hostname()
+    hostname, private_ip_address, public_ip_address, public_ipv4_dns = get_ip_and_hostname()
     debug_message = "instance opened the browser successfully."
-    email_message = f"CHANGE DETECTED!\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
+    email_message = f"CHANGE DETECTED!\n\nPublic IPV4 DNS:\n{public_ipv4_dns}\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
       
     try:
         options = Options()
         options.add_experimental_option("debuggerAddress", "localhost:9222")
         driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
-        
+        print("WebDriver options set.")
         # Switch to the first tab (index 0)
         driver.switch_to.window(driver.window_handles[0])
-        
+        print("Connteted to the browser successfully.")
         driver.get(url)
+        print(f"Opening the URL: {url}")
 
         initial_content = driver.page_source
+        print("Initial page content fetched.")
         send_cloudwatch_log(region_name, log_group, log_stream, debug_message, aws_access_key_id, aws_secret_access_key)
         count = 0
         try:
@@ -82,10 +88,11 @@ def monitor_website(url, check_interval, log_group, log_stream, region_name, aws
                     send_cloudwatch_log(region_name, log_group, log_stream, email_message, aws_access_key_id, aws_secret_access_key)
                     break
                 else:
-                    print("No change detected.")
+                    print(f"Check {count}: Content checked, no change detected.")
                     count += 1
         finally:
             driver.quit()
+            print("Quitting the driver.")
     except Exception as e:
         error_message = f"error: {e}"
         print(error_message)

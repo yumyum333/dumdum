@@ -128,7 +128,7 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
     return security_group_id
 
 
-def connect_to_instance(instance_id, key_path, region_name):
+def connect_to_instance(instance_id, key_path, region_name, security_group_id):
     ec2_resource = boto3.resource('ec2', region_name=region_name)
     instance = ec2_resource.Instance(instance_id)
     
@@ -156,7 +156,7 @@ def connect_to_instance(instance_id, key_path, region_name):
 
     # Connect to the instance
     try:
-        print(f"Attempting to connect to instance with ID: {instance_id} at {public_ip}...")
+        print(f"Attempting to connect to instance with ID: {instance_id} at {public_ip} using security group {security_group_id}...")
         ssh.connect(hostname=public_ip, username="Administrator", pkey=private_key, timeout=120)
         print("SSH connection established.")
     except Exception as e:
@@ -174,9 +174,9 @@ def run_commands_on_instance(ssh, commands):
         print(f"Error: {stderr.read().decode('utf-8')}")
 
 
-async def connect_and_run_commands(instance_id, key_path, region_name, commands):
+async def connect_and_run_commands(instance_id, key_path, region_name, commands, security_group_id):
     print(f"Connecting to instance: {instance_id}")
-    ssh = connect_to_instance(instance_id, key_path, region_name)
+    ssh = connect_to_instance(instance_id, key_path, region_name, security_group_id)
     if ssh is None:
         print(f"Failed to establish SSH connection to instance {instance_id}. Skipping command execution.")
         return
@@ -233,12 +233,6 @@ async def main():
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
 
-    # Create commands.txt with the formatted Python command using echo
-    echo "python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}" > "C:\Users\Administrator\Desktop\commands.txt"
-
-    # Install required packages
-    cd C:\Users\Administrator\Desktop
-    pip install -r requirements.txt
     </powershell>
     """
 
@@ -255,7 +249,7 @@ async def main():
             f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
         ]
 
-        await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_PATH, REGION_NAME, commands) for instance_id in instance_ids])
+        await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_PATH, REGION_NAME, commands, security_group_id) for instance_id in instance_ids])
     else:
         print("Failed to launch instances.")
 
