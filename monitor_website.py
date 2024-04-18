@@ -11,6 +11,7 @@ from email.mime.multipart import MIMEMultipart
 import requests
 import boto3
 import os
+import datetime
 
 def get_ip_and_hostname():
     print("Fetching IP and hostname")
@@ -111,7 +112,18 @@ if __name__ == "__main__":
     parser.add_argument('--aws-access-key-id', type=str, required=True, help='The AWS access key ID.')
     parser.add_argument('--aws-secret-access-key', type=str, required=True, help='The AWS secret access key.')
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug mode.")
-    
+    parser.add_argument('--start-time', type=str, default=None, help='Start time in HH:MM format (24-hour clock).')
+
     args = parser.parse_args()
+
+    # Handle the start time argument
+    if args.start_time:
+        now = datetime.datetime.now()
+        start_time = datetime.datetime.strptime(args.start_time, '%H:%M').replace(year=now.year, month=now.month, day=now.day)
+        if start_time < now:
+            start_time += datetime.timedelta(days=1)  # Move to the next day if the time is in the past
+        delay_seconds = (start_time - now).total_seconds()
+        print(f"Curent time: {now.strftime('%H:%M')}, Waiting until {start_time} to start monitoring...")
+        time.sleep(min(max(0, delay_seconds), 180))
     
     monitor_website(args.url, args.interval, args.log_group, args.log_stream, args.region_name, args.aws_access_key_id, args.aws_secret_access_key, args.debug)

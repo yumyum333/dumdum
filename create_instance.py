@@ -128,68 +128,6 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
     return security_group_id
 
 
-def connect_to_instance(instance_id, key_path, region_name, security_group_id):
-    ec2_resource = boto3.resource('ec2', region_name=region_name)
-    instance = ec2_resource.Instance(instance_id)
-    
-    # Wait until the instance is in a running state
-    print(f"Waiting for instance {instance_id} to be in 'running' state...")
-    instance.wait_until_running()
-    print(f"Instance {instance_id} is now running.")
-
-    # Get the public IP address of the instance
-    public_ip = instance.public_ip_address
-    if not public_ip:
-        print(f"No public IP address assigned to instance {instance_id}.")
-        return None
-
-    # Create an SSH client
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    # Connect to the instance using password
-    admin_password = os.getenv('ADMIN_PASSWORD')  # Ensure this environment variable is correctly set
-    max_attempts = 5
-    for attempt in range(max_attempts):
-        try:
-            print(f"Attempt {attempt + 1}: Connecting to instance...\nID: {instance_id}\nIP: {public_ip}\nSecurity group: {security_group_id}\nKey: {key_path}")
-            ssh.connect(hostname=public_ip, username="Administrator", password=admin_password, key_filename=key_path, timeout=30)
-            print("SSH connection established.")
-            return ssh
-        except paramiko.ssh_exception.NoValidConnectionsError as e:
-            print(f"Failed to connect to instance {instance_id}: {e}")
-            if attempt < max_attempts - 1:
-                print("Retrying in 30 seconds...")
-                time.sleep(30)
-            else:
-                print("Maximum retry attempts reached, failing...")
-                return None
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            return None
-
-    return None
-
-def run_commands_on_instance(ssh, commands):
-    print("Running commands on the instance...")
-    for command in commands:
-        stdin, stdout, stderr = ssh.exec_command(command)
-        print(f"Command: {command}")
-        print(f"Output: {stdout.read().decode('utf-8')}")
-        print(f"Error: {stderr.read().decode('utf-8')}")
-
-
-async def connect_and_run_commands(instance_id, key_path, region_name, commands, security_group_id):
-    print(f"Connecting to instance: {instance_id}")
-    ssh = connect_to_instance(instance_id, key_path, region_name, security_group_id)
-    if ssh is None:
-        print(f"Failed to establish SSH connection to instance {instance_id}. Skipping command execution.")
-        return
-
-    await asyncio.gather(*[asyncio.to_thread(run_commands_on_instance, ssh, [command]) for command in commands])
-
-    ssh.close()
-
 async def main():
     
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
@@ -231,19 +169,6 @@ async def main():
     # Allow RDP through Windows Firewall
     netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
 
-    # Install and configure OpenSSH Server
-    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-    Start-Service sshd
-    Set-Service -Name sshd -StartupType 'Automatic'
-
-
-    # Configure SSH to use the default user profile
-    $sshConfPath = "$env:ProgramData\ssh\sshd_config"
-    $sshConfContent = Get-Content -Path $sshConfPath
-    $sshConfContent += "`nMatch User Administrator`n    ForceCommand powershell.exe"
-    Set-Content -Path $sshConfPath -Value $sshConfContent
-    Restart-Service sshd
-
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"
     Start-Process -FilePath "C:\Users\Administrator\Desktop\python-installer.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1" -Wait
@@ -252,11 +177,8 @@ async def main():
     # Download the Python script and requirements.txt to the Desktop
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/vpn_install.bat" -OutFile "C:\Users\Administrator\Desktop\vpn_install.bat"
 
-    # Add Microsoft Edge startup command
-    $startupPath = "C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-    $edgeLaunchScript = "Start-Process 'msedge' -ArgumentList 'https://www.example.com'"
-    Set-Content -Path "$startupPath\launchEdge.ps1" -Value $edgeLaunchScript
 
 
     </powershell>
@@ -264,35 +186,5 @@ async def main():
 
     instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, NON_VPN_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
 
-    # if instance_ids:
-    #     print(f"Instances launched successfully. Instance IDs: {instance_ids}")
-
-    #     commands = [
-    #         'cd Desktop',
-    #         'pip install -r requirements.txt',
-    #         'ex --remote-debugging-port=9222 "{URL}"',
-    #         'timeout /t 10',
-    #         f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
-    #     ]
-
-    #     await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_PATH, REGION_NAME, commands, security_group_id) for instance_id in instance_ids])
-    # else:
-    #     print("Failed to launch instances.")
-
 if __name__ == '__main__':
     asyncio.run(main())
-
-
-    # # Configure AutoLogon
-    # $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    # Set-ItemProperty -Path $RegPath -Name "AutoAdminLogon" -Value "1"
-    # Set-ItemProperty -Path $RegPath -Name "DefaultUserName" -Value "Administrator"
-    # Set-ItemProperty -Path $RegPath -Name "DefaultPassword" -Value "{admin_password}"
-
-    #     # Add startup command for installing requirements and running the monitor script
-    # $monitorScript = @"
-    # cd C:\Users\Administrator\Desktop
-    # pip install -r requirements.txt
-    # python monitor_website.py --url '{URL}' --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}
-    # "@
-    # Set-Content -Path "$startupPath\runMonitor.ps1" -Value $monitorScript
