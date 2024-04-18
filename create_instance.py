@@ -7,16 +7,19 @@ import random
 from datetime import datetime
 import paramiko
 import asyncio
+from tqdm import tqdm
 
 
 # Load environment variables from .env file
 load_dotenv()
 
 def launch_instances(image_id, instance_type, count, key_name, security_group_id, user_data, region_name):
+    print("Initializing EC2 client...")
     ec2 = boto3.client('ec2', region_name=region_name)
 
     # Check if the rule already exists
     try:
+        print("Checking for existing security group rules...")
         rules = ec2.describe_security_group_rules(Filters=[
             {'Name': 'group-id', 'Values': [security_group_id]}
         ])
@@ -26,6 +29,7 @@ def launch_instances(image_id, instance_type, count, key_name, security_group_id
                 break
         else:
             # Add the rule if it does not exist
+            print("Adding new rule for TCP port 3389...")
             ec2.authorize_security_group_ingress(
                 GroupId=security_group_id,
                 IpPermissions=[
@@ -45,6 +49,7 @@ def launch_instances(image_id, instance_type, count, key_name, security_group_id
     # Launch instances
     try:
         exp_time = datetime.now().strftime("%H%M-%S-%b%d")
+        print(f"Launching {count} instances...")
         response = ec2.run_instances(
             ImageId=image_id,
             InstanceType=instance_type,
@@ -97,6 +102,7 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
         raise
 
     # Create new security group
+    print("Creating a new security group...")
     response = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
     security_group_id = response['GroupId']
     print(f'Security Group Created: {security_group_id} in vpc {vpc_id}.')
@@ -122,29 +128,45 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
     return security_group_id
 
 
-def connect_to_instance(instance_id, key_name, region_name):
+def connect_to_instance(instance_id, key_path, region_name):
     ec2_resource = boto3.resource('ec2', region_name=region_name)
     instance = ec2_resource.Instance(instance_id)
+    
+    # Wait until the instance is in a running state
+    print(f"Waiting for instance {instance_id} to be in 'running' state...")
     instance.wait_until_running()
+    print(f"Instance {instance_id} is now running.")
 
     # Get the public IP address of the instance
     public_ip = instance.public_ip_address
+    if not public_ip:
+        print(f"No public IP address assigned to instance {instance_id}.")
+        return None
 
     # Create an SSH client
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     # Load the private key
-    key_path = f"{key_name}.pem"
-    private_key = paramiko.RSAKey.from_private_key_file(key_path)
+    try:
+        private_key = paramiko.RSAKey.from_private_key_file(key_path)
+    except Exception as e:
+        print(f"Failed to load private key from {key_path}: {e}")
+        return None
 
     # Connect to the instance
-    ssh.connect(hostname=public_ip, username="Administrator", pkey=private_key)
+    try:
+        print(f"Attempting to connect to instance with ID: {instance_id} at {public_ip}...")
+        ssh.connect(hostname=public_ip, username="Administrator", pkey=private_key, timeout=120)
+        print("SSH connection established.")
+    except Exception as e:
+        print(f"Failed to connect to instance {instance_id}: {e}")
+        return None
 
     return ssh
 
-
 def run_commands_on_instance(ssh, commands):
+    print("Running commands on the instance...")
     for command in commands:
         stdin, stdout, stderr = ssh.exec_command(command)
         print(f"Command: {command}")
@@ -152,15 +174,17 @@ def run_commands_on_instance(ssh, commands):
         print(f"Error: {stderr.read().decode('utf-8')}")
 
 
-async def connect_and_run_commands(instance_id, key_name, region_name, commands):
+async def connect_and_run_commands(instance_id, key_path, region_name, commands):
     print(f"Connecting to instance: {instance_id}")
-    ssh = connect_to_instance(instance_id, key_name, region_name)
+    ssh = connect_to_instance(instance_id, key_path, region_name)
+    if ssh is None:
+        print(f"Failed to establish SSH connection to instance {instance_id}. Skipping command execution.")
+        return
 
     await asyncio.gather(*[asyncio.to_thread(run_commands_on_instance, ssh, [command]) for command in commands])
 
     ssh.close()
 
-# if __name__ == "__main__":
 async def main():
     
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
@@ -170,7 +194,7 @@ async def main():
     NORDVPN_PASSWORD = os.getenv('NORDVPN_PASSWORD')
     REGION_NAME = os.getenv('REGION_NAME')
     INSTANCE_TYPE = os.getenv('INSTANCE_TYPE')
-    INSTANCE_COUNT = int(os.getenv('INSTANCE_COUNT'))
+    NON_VPN_COUNT = int(os.getenv('NON_VPN_COUNT'))
     GROUP_NAME = os.getenv('GROUP_NAME')
     INTERVAL = int(os.getenv('INTERVAL'))
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
@@ -178,6 +202,7 @@ async def main():
     LOG_STREAM = os.getenv('LOG_STREAM')
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+    KEY_PATH = os.getenv('KEY_PATH')
 
     DESCRIPTION = "Security group for instance access on all ports from any IP"
     ec2 = boto3.client('ec2', region_name=REGION_NAME)
@@ -208,33 +233,17 @@ async def main():
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
 
+    # Create commands.txt with the formatted Python command using echo
+    echo "python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}" > "C:\Users\Administrator\Desktop\commands.txt"
+
     # Install required packages
     cd C:\Users\Administrator\Desktop
     pip install -r requirements.txt
-
     </powershell>
     """
 
-    instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, INSTANCE_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
+    instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, NON_VPN_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
 
-    # if instance_ids:
-    #     print(f"Instances launched successfully. Instance IDs: {instance_ids}")
-        
-    #     for instance_id in instance_ids:
-    #         print(f"Connecting to instance: {instance_id}")
-    #         ssh = connect_to_instance(instance_id, KEY_NAME, REGION_NAME)
-            
-    #         commands = [
-    #             'cd Desktop',
-    #             'pip install -r requirements.txt',
-    #             'start msedge --guest --remote-debugging-port=9222 "{URL}"',
-    #             'timeout /t 10',
-    #             f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
-    #         ]
-            
-    #         run_commands_on_instance(ssh, commands)
-            
-    #         ssh.close()
     if instance_ids:
         print(f"Instances launched successfully. Instance IDs: {instance_ids}")
 
@@ -246,7 +255,7 @@ async def main():
             f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
         ]
 
-        await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_NAME, REGION_NAME, commands) for instance_id in instance_ids])
+        await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_PATH, REGION_NAME, commands) for instance_id in instance_ids])
     else:
         print("Failed to launch instances.")
 
