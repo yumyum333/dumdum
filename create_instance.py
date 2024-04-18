@@ -147,17 +147,14 @@ def connect_to_instance(instance_id, key_path, region_name, security_group_id):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    # Load the private key
-    try:
-        private_key = paramiko.RSAKey.from_private_key_file(key_path)
-    except Exception as e:
-        print(f"Failed to load private key from {key_path}: {e}")
-        return None
+    # Load the private key if using key-based authentication
+    # private_key = paramiko.RSAKey.from_private_key_file(key_path)
 
-    # Connect to the instance
+    # Connect to the instance using password
+    admin_password = os.getenv('ADMIN_PASSWORD')  # Ensure this environment variable is correctly set
     try:
-        print(f"Attempting to connect to instance with ID: {instance_id} at {public_ip} using security group {security_group_id}...")
-        ssh.connect(hostname=public_ip, username="Administrator", pkey=private_key, timeout=120)
+        print(f"Attempting to connect to instance...\nID: {instance_id}\nIP: {public_ip}\nSecurity group: {security_group_id}\nKey: {key_path}")
+        ssh.connect(hostname=public_ip, username="Administrator", password=admin_password, timeout=120, key_filename=key_path)
         print("SSH connection established.")
     except Exception as e:
         print(f"Failed to connect to instance {instance_id}: {e}")
@@ -223,6 +220,11 @@ async def main():
 
     # Allow RDP through Windows Firewall
     netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+
+    # Also allow ssh
+    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+    Start-Service sshd
+    Set-Service -Name sshd -StartupType 'Automatic'
 
     # Install Python and virtual environment tools
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.9.7/python-3.9.7-amd64.exe" -OutFile "C:\Users\Administrator\Desktop\python-installer.exe"

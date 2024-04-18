@@ -13,7 +13,6 @@ import boto3
 import os
 
 def get_ip_and_hostname():
-    print(f"Hostname: {hostname}, Private IP: {private_ip_address}, Public IP: {public_ip_address}")
     hostname = socket.gethostname()
     private_ip_address = socket.gethostbyname(hostname)
     try:
@@ -24,6 +23,7 @@ def get_ip_and_hostname():
         # Fallback if not running on AWS or if the request fails
         public_ip_address = "Unavailable"
         public_ipv4_dns = "Unavailable"
+    print(f"Hostname: {hostname}, Private IP: {private_ip_address}, Public IP: {public_ip_address}, Public IPV4 DNS: {public_ipv4_dns}")
     return hostname, private_ip_address, public_ip_address, public_ipv4_dns
 
 def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_key_id, aws_secret_access_key):
