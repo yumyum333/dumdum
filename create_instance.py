@@ -8,11 +8,11 @@ from datetime import datetime
 import paramiko
 import asyncio
 from tqdm import tqdm
+import argparse
 
 
 # Load environment variables from .env file
 load_dotenv()
-
 def launch_instances(image_id, instance_type, count, key_name, security_group_id, user_data, region_name):
     print("Initializing EC2 client...")
     ec2 = boto3.client('ec2', region_name=region_name)
@@ -71,7 +71,28 @@ def launch_instances(image_id, instance_type, count, key_name, security_group_id
             ]
         )
         print(f"Successfully launched {count} instances.")
-        return [instance['InstanceId'] for instance in response['Instances']]
+        instance_ids = [instance['InstanceId'] for instance in response['Instances']]
+
+        # Wait for instances to be in a running state
+        print("Waiting for instances to be in a 'running' state...")
+        waiter = ec2.get_waiter('instance_running')
+        waiter.wait(InstanceIds=instance_ids)
+        print("Instances are now running.")
+        
+        # Retrieve public IP addresses
+        public_ips = []
+        for instance_id in instance_ids:
+            instance_description = ec2.describe_instances(InstanceIds=[instance_id])
+            public_ip = instance_description['Reservations'][0]['Instances'][0]['PublicIpAddress']
+            public_ips.append(public_ip)
+        
+        # Write public IP addresses to a file
+        exp_time = datetime.now().strftime("%H%M-%S-%b%d")
+        with open(f'instance_ips_{exp_time}.txt', 'w') as file:
+            for ip in public_ips:
+                file.write(ip + '\n')
+        
+        return instance_ids
     except Exception as e:
         print(f"An error occurred while launching instances: {str(e)}")
         return []
@@ -130,6 +151,14 @@ def create_security_group(ec2, group_name, description, vpc_id=None):
 
 async def main():
     
+    def parse_args():
+        parser = argparse.ArgumentParser(description='Launch EC2 instances with specific configurations.')
+        parser.add_argument('--instance-count', type=int, required=True, help='Number of instances to launch without VPN.')
+        return parser.parse_args()
+    
+    args = parse_args()
+    INSTANCE_COUNT = args.instance_count  # Use the parsed command-line argument
+
     IMAGE_ID = os.getenv('AMI_IMAGE_ID')
     KEY_NAME = os.getenv('AWS_KEY_NAME')
     URL = os.getenv('URL')
@@ -137,7 +166,6 @@ async def main():
     NORDVPN_PASSWORD = os.getenv('NORDVPN_PASSWORD')
     REGION_NAME = os.getenv('REGION_NAME')
     INSTANCE_TYPE = os.getenv('INSTANCE_TYPE')
-    NON_VPN_COUNT = int(os.getenv('NON_VPN_COUNT'))
     GROUP_NAME = os.getenv('GROUP_NAME')
     INTERVAL = int(os.getenv('INTERVAL'))
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
@@ -184,7 +212,7 @@ async def main():
     </powershell>
     """.replace("{admin_password}", ADMIN_PASSWORD).replace("{URL}", URL).replace("{INTERVAL}", str(INTERVAL)).replace("{LOG_GROUP}", LOG_GROUP).replace("{LOG_STREAM}", LOG_STREAM).replace("{REGION_NAME}", REGION_NAME).replace("{AWS_ACCESS_KEY_ID}", AWS_ACCESS_KEY_ID).replace("{AWS_SECRET_ACCESS_KEY}", AWS_SECRET_ACCESS_KEY)
 
-    instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, NON_VPN_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
+    instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, INSTANCE_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
 
 if __name__ == '__main__':
     asyncio.run(main())
