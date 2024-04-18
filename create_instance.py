@@ -208,6 +208,11 @@ async def main():
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/vpn_install.bat" -OutFile "C:\Users\Administrator\Desktop\vpn_install.bat"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/install_requirements.bat" -OutFile "C:\Users\Administrator\Desktop\install_requirements.bat"
 
+    # Install NordVPN
+    Invoke-WebRequest -Uri "https://downloads.nordcdn.com/apps/windows/10/NordVPN/latest/NordVPNSetup.exe" -OutFile "C:\Users\Administrator\Desktop\NordVPNSetup.exe"
+    Start-Process -FilePath "C:\Users\Administrator\Desktop\NordVPNSetup.exe" -ArgumentList "/SILENT" -Wait
+    Remove-Item "C:\Users\Administrator\Desktop\NordVPNSetup.exe"
+
 
 
     </powershell>
