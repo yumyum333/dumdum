@@ -206,6 +206,7 @@ async def main():
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/monitor_website.py" -OutFile "C:\Users\Administrator\Desktop\monitor_website.py"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/requirements.txt" -OutFile "C:\Users\Administrator\Desktop\requirements.txt"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/vpn_install.bat" -OutFile "C:\Users\Administrator\Desktop\vpn_install.bat"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yumyum333/dumdum/main/install_requirements.bat" -OutFile "C:\Users\Administrator\Desktop\install_requirements.bat"
 
 
 
