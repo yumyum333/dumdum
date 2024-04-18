@@ -217,11 +217,13 @@ async def main():
         description=DESCRIPTION, 
     )
         
-    USER_DATA = rf"""
+    # Static part of the PowerShell script
+    USER_DATA = r"""
     <powershell>
     # Set the Administrator password (ensure it meets complexity requirements)
-    net user Administrator "{ADMIN_PASSWORD}"
+    net user Administrator "{admin_password}"
 
+    
     # Enable RDP
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
     Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
@@ -233,6 +235,7 @@ async def main():
     Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
     Start-Service sshd
     Set-Service -Name sshd -StartupType 'Automatic'
+
 
     # Configure SSH to use the default user profile
     $sshConfPath = "$env:ProgramData\ssh\sshd_config"
@@ -255,33 +258,41 @@ async def main():
     $edgeLaunchScript = "Start-Process 'msedge' -ArgumentList 'https://www.example.com'"
     Set-Content -Path "$startupPath\launchEdge.ps1" -Value $edgeLaunchScript
 
-    # Add startup command for installing requirements and running the monitor script
-    $monitorScript = @"
-    cd C:\Users\Administrator\Desktop
-    pip install -r requirements.txt
-    python monitor_website.py --url '{URL}' --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}
-    "@
-    Set-Content -Path "$startupPath\runMonitor.ps1" -Value $monitorScript
 
     </powershell>
-    """
+    """.replace("{admin_password}", ADMIN_PASSWORD).replace("{URL}", URL).replace("{INTERVAL}", str(INTERVAL)).replace("{LOG_GROUP}", LOG_GROUP).replace("{LOG_STREAM}", LOG_STREAM).replace("{REGION_NAME}", REGION_NAME).replace("{AWS_ACCESS_KEY_ID}", AWS_ACCESS_KEY_ID).replace("{AWS_SECRET_ACCESS_KEY}", AWS_SECRET_ACCESS_KEY)
 
     instance_ids = launch_instances(IMAGE_ID, INSTANCE_TYPE, NON_VPN_COUNT, KEY_NAME, security_group_id, USER_DATA, REGION_NAME)
 
-    if instance_ids:
-        print(f"Instances launched successfully. Instance IDs: {instance_ids}")
+    # if instance_ids:
+    #     print(f"Instances launched successfully. Instance IDs: {instance_ids}")
 
-        commands = [
-            'cd Desktop',
-            'pip install -r requirements.txt',
-            'ex --remote-debugging-port=9222 "{URL}"',
-            'timeout /t 10',
-            f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
-        ]
+    #     commands = [
+    #         'cd Desktop',
+    #         'pip install -r requirements.txt',
+    #         'ex --remote-debugging-port=9222 "{URL}"',
+    #         'timeout /t 10',
+    #         f'python monitor_website.py --url {URL} --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}'
+    #     ]
 
-        await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_PATH, REGION_NAME, commands, security_group_id) for instance_id in instance_ids])
-    else:
-        print("Failed to launch instances.")
+    #     await asyncio.gather(*[connect_and_run_commands(instance_id, KEY_PATH, REGION_NAME, commands, security_group_id) for instance_id in instance_ids])
+    # else:
+    #     print("Failed to launch instances.")
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+
+    # # Configure AutoLogon
+    # $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+    # Set-ItemProperty -Path $RegPath -Name "AutoAdminLogon" -Value "1"
+    # Set-ItemProperty -Path $RegPath -Name "DefaultUserName" -Value "Administrator"
+    # Set-ItemProperty -Path $RegPath -Name "DefaultPassword" -Value "{admin_password}"
+
+    #     # Add startup command for installing requirements and running the monitor script
+    # $monitorScript = @"
+    # cd C:\Users\Administrator\Desktop
+    # pip install -r requirements.txt
+    # python monitor_website.py --url '{URL}' --interval {INTERVAL} --log-group {LOG_GROUP} --log-stream {LOG_STREAM} --region-name {REGION_NAME} --aws-access-key-id {AWS_ACCESS_KEY_ID} --aws-secret-access-key {AWS_SECRET_ACCESS_KEY}
+    # "@
+    # Set-Content -Path "$startupPath\runMonitor.ps1" -Value $monitorScript

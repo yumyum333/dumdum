@@ -13,6 +13,7 @@ import boto3
 import os
 
 def get_ip_and_hostname():
+    print("Fetching IP and hostname")
     hostname = socket.gethostname()
     private_ip_address = socket.gethostbyname(hostname)
     try:
@@ -27,6 +28,7 @@ def get_ip_and_hostname():
     return hostname, private_ip_address, public_ip_address, public_ipv4_dns
 
 def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_key_id, aws_secret_access_key):
+    print("Creating cloudwatch client")
     client = boto3.client('logs', region_name=region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
     print(f"Sending log to CloudWatch: {message}")
     try:
@@ -59,7 +61,7 @@ def send_cloudwatch_log(region_name, log_group, log_stream, message, aws_access_
     except Exception as e:
         print(f"Failed to send log to CloudWatch: {e}")
 
-def monitor_website(url, check_interval, log_group, log_stream, region_name, aws_access_key_id, aws_secret_access_key):
+def monitor_website(url, check_interval, log_group, log_stream, region_name, aws_access_key_id, aws_secret_access_key, debug=False):
     hostname, private_ip_address, public_ip_address, public_ipv4_dns = get_ip_and_hostname()
     debug_message = "instance opened the browser successfully."
     email_message = f"CHANGE DETECTED!\n\nPublic IPV4 DNS:\n{public_ipv4_dns}\n\nHostname:\n{hostname}\n\nPrivate IP Address:\n{private_ip_address}\n\nPublic IP Address:\n{public_ip_address}"
@@ -77,7 +79,8 @@ def monitor_website(url, check_interval, log_group, log_stream, region_name, aws
 
         initial_content = driver.page_source
         print("Initial page content fetched.")
-        send_cloudwatch_log(region_name, log_group, log_stream, debug_message, aws_access_key_id, aws_secret_access_key)
+        if debug:
+            send_cloudwatch_log(region_name, log_group, log_stream, debug_message, aws_access_key_id, aws_secret_access_key)
         count = 0
         try:
             while True:
@@ -107,7 +110,8 @@ if __name__ == "__main__":
     parser.add_argument('--region-name', type=str, default="eu-west-2", help='The AWS region name. Default is "eu-west-2".')
     parser.add_argument('--aws-access-key-id', type=str, required=True, help='The AWS access key ID.')
     parser.add_argument('--aws-secret-access-key', type=str, required=True, help='The AWS secret access key.')
+    parser.add_argument("--debug", action="store_true", default=False, help="Enable debug mode.")
     
     args = parser.parse_args()
     
-    monitor_website(args.url, args.interval, args.log_group, args.log_stream, args.region_name, args.aws_access_key_id, args.aws_secret_access_key)
+    monitor_website(args.url, args.interval, args.log_group, args.log_stream, args.region_name, args.aws_access_key_id, args.aws_secret_access_key, args.debug)
